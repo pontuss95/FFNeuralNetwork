@@ -11,7 +11,7 @@ typedef struct DMatrix
 
 typedef struct Neuron
 {
-    double *Weight;                 // weights, first weight is bias.
+    double *Weights;                 // weights, first weight is bias.
     double *derivWeights;           // Derivative of weights, used to take gradient descent step.
     double (*actFunc)(double);      // ActvFunc
     double (*derivActFunc)(double); // derivative of actvFunc w.r.t to input. Used for back-prop
@@ -28,7 +28,8 @@ typedef struct Layer
 
 typedef struct Network
 {
-    int NHiddenLayers;
+    int NLayers;
+    int *LSize;
     int InpSize;
     int OutSize;
     Layer *Layers;
