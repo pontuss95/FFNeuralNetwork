@@ -25,11 +25,11 @@ double Layer_forwardProp(Layer self, double *x, int xLen)
     for (int i = 0; i < (self.LSize); i++)
     {
         currNeur = (self.Neurn + i);
-        *(self.output + i) = *(currNeur->Weight); // Initalize with bias
+        *(self.output + i) = *(currNeur->Weights); // Initalize with bias
 
         for (int j = 1; j < (xLen + 1); j++)
         {
-            *(self.output + i) += *(x + j) * *(currNeur->Weight + j); // Propagate input through weights.
+            *(self.output + i) += *(x + j) * *(currNeur->Weights + j); // Propagate input through weights.
         }
 
         *(self.output + i) = currNeur->actFunc(*(self.output + i)); // Non-liner activation function
@@ -41,7 +41,7 @@ void forwardProp(Network self, double *x)
     Layer_forwardProp(*(self.Layers), x, self.InpSize);
 
     Layer *currLayer;
-    for (int i = 1; i < self.NHiddenLayers; i++)
+    for (int i = 1; i < self.NLayers; i++)
     {
         currLayer = (self.Layers + i);
         Layer_forwardProp(*currLayer, (*(currLayer - 1)).output, (*currLayer).LSize);
@@ -53,8 +53,8 @@ double back_prop(Network self, double *y, int yLen, double Norm)
     double rmsVal;
     double *rmsDeriv;
 
-    Layer *finalLayer = (self.Layers + self.NHiddenLayers - 1);
-    Layer *prevToFinalLayer = (self.Layers + self.NHiddenLayers - 2);
+    Layer *finalLayer = (self.Layers + self.NLayers - 1);
+    Layer *prevToFinalLayer = (self.Layers + self.NLayers - 2);
 
     rms(y, finalLayer->output, yLen, &rmsVal, rmsDeriv);
     int out = 0;
@@ -66,8 +66,8 @@ double back_prop(Network self, double *y, int yLen, double Norm)
         for (int j = 0; j < finalLayer->LSize; j++)
         {
             CurrNeur = (finalLayer->Neurn + j);
-            *(finalLayer->derivWrtCostFun + i) += *(CurrNeur->Weight + i) * CurrNeur->derivActFunc(*(finalLayer->output + j)); //
-            *(CurrNeur->Weight + i) * *(CurrNeur->Weight + i) * CurrNeur->derivActFunc(*(finalLayer->output + j));
+            *(finalLayer->derivWrtCostFun + i) += *(CurrNeur->Weights + i) * CurrNeur->derivActFunc(*(finalLayer->output + j)); //
+            *(CurrNeur->Weights + i) * *(CurrNeur->Weights + i) * CurrNeur->derivActFunc(*(finalLayer->output + j));
         }
     }
 
@@ -91,23 +91,57 @@ void rms(double *y, double *y_hat, int len, double *rmsVal, double *rmsValDer)
     *rmsVal = sqrt(*rmsVal);
 }
 
+void InitializeWeightsAndBiases(Network *Net)
+{
 
+    for (int i = 0; i < Net->NLayers; i++)
+    {
+        for (int j = 0; j < Net->LSize[i]; j++)
+        {
+            int iterVar = 0;
+            if (i == 0)
+            {
+                iterVar = Net->InpSize + 1;
+            }
+            else
+            {
+                iterVar = Net->LSize[i - 1] + 1;
+            }
+            for (int q = 0; q < iterVar; q++)
+            {
+                Net->Layers[i].Neurn[j].Weights[q] = (double)rand() / (double)RAND_MAX;
+                Net->Layers[i].Neurn[j].derivWeights[q] = 0;
+            }
+        }
+    }
+}
 
 void InitializeLayers(Network *Net)
 {
     for (int i = 0; i < Net->NLayers; i++)
     {
         Net->Layers->Neurn = (Neuron *)malloc(sizeof(Neuron) * *(Net->LSize + i));
+        Net->Layers->output = (double *)malloc(sizeof(double) * *(Net->LSize + i));
+
     }
-    Net->Layers->Neurn->Weights = (double *)malloc(sizeof(double) * (Net->InpSize+1));
-    Net->Layers->Neurn->derivWeights = (double *)malloc(sizeof(double) * (Net->InpSize+1));
-
-    for (int i = 1; i < Net->NLayers ; i++)
+    for (int i = 0; i < Net->NLayers; i++)
     {
-    (Net->Layers->Neurn->Weights + i) = (double *)malloc(sizeof(double) * (*(Net->LSize - 1 + i) + 1));
-    (Net->Layers->Neurn->derivWeights + i) = (double *)malloc(sizeof(double) * (*(Net->LSize - 1 + i) + 1));
-
-
+        for (int j = 0; j < Net->LSize[i]; j++)
+        {
+            Net->Layers->Neurn[j].actFunc = &Sigmoid;
+            Net->Layers->Neurn[j].derivActFunc = &DerivSigmoid;
+            
+            if (i == 0)
+            {
+                Net->Layers->Neurn[j].Weights = (double *)malloc(sizeof(double) * (Net->InpSize + 1));
+                Net->Layers->Neurn[j].derivWeights = (double *)malloc(sizeof(double) * (Net->InpSize + 1));
+            }
+            else
+            {
+                (Net->Layers->Neurn[j].Weights) = (double *)malloc(sizeof(double) * (*(Net->LSize - 1 + i) + 1));
+                (Net->Layers->Neurn[j].derivWeights) = (double *)malloc(sizeof(double) * (*(Net->LSize - 1 + i) + 1));
+            }
+        }
     }
 }
 
@@ -127,8 +161,22 @@ Network *InitializeNetwork(int NLay, int *Lsize, int inSize, int outSize)
     Net->InpSize = inSize;
     Net->OutSize = outSize;
     Net->CostFun = &rms;
+
+    InitializeLayers(Net);
+    InitializeWeightsAndBiases(Net);
+    return Net;
 }
 
 int main()
 {
+    int LSize[2] = {2, 2};
+    int NLay = 2;
+    int inSize = 2;
+    int outSize = 2;
+    Network *Net  = InitializeNetwork(NLay, LSize, inSize, outSize);
+
+    printf("\n Outputs \n");
+    for(int i = 0; i < 2; i++){
+        printf("%f  ", Net->Layers[1].output[i]);
+    }
 }
