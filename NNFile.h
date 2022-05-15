@@ -41,9 +41,22 @@ typedef struct Network
     void (*CostFun)(double *, double *, int, double *, double *)
 } Network;
 
-double Layer_forwardProp(Layer*, double*, int);
+typedef struct dataSet
+{
+    //Original dataset can be yielded by 
+    //yAugmented = y*yGain-yOffs;    
+
+    double **yAugmented;
+    double **xAugmented;
+    double yGain;
+    double yOffs;
+    double xGain;
+    double yOffs;
+} dataSet;
+
+void Layer_forwardProp(Layer*, double*, int);
 void forwardProp(Network*, double*);
-double back_prop(Network*, double *, double);
+double back_prop(Network*, double*, double*);
 void rms(double *, double *, int, double *, double *);
 double Sigmoid(double);
 double DerivSigmoid(double);

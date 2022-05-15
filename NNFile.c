@@ -29,7 +29,7 @@ double derivLinearFun(double val)
     return 1;
 }
 
-double Layer_forwardProp(Layer *self, double *x, int xLen)
+void Layer_forwardProp(Layer *self, double *x, int xLen)
 {
     Neuron *currNeur;
     for (int i = 0; i < (self->LSize); i++)
@@ -58,12 +58,11 @@ void forwardProp(Network *self, double *x)
     }
 }
 
-double back_prop(Network *self, double *y, double Norm)
+double back_prop(Network *self, double *y, double *x)
 {
     double cost = 0;
 
     Layer *finalLayer = &(self->Layers[self->NLayers - 1]);
-    Layer *prevToFinalLayer = &(self->Layers[self->NLayers - 2]);
 
     rms(y, finalLayer->output, self->OutSize, &cost, self->DCostDLastLay);
 
@@ -78,7 +77,7 @@ double back_prop(Network *self, double *y, double Norm)
     // Back-prop to first layer
     Layer *L1;
     Layer *L2;
-    for (int i = self->NLayers - 1; i >= 0; i++) // Layer loop
+    for (int i = self->NLayers - 1; i >= 0; i--) // Layer loop
     {
         if (i != 0)
         {
@@ -94,16 +93,27 @@ double back_prop(Network *self, double *y, double Norm)
         for (int j = 0; j < L1->LSize; j++) // Neuron loop
         {
             currNeur = &L1->Neurn[j];
-            for (int q = 0; q < L2->LSize; q++) // PrevNeuronLoop
+
+            if (L2 != NULL)
             {
-                currNeur->derivWeights[q + 1] = currNeur->derivWrtCostFun * L2->output[q];
-                if (i != 0)
+                currNeur->derivWeights[0] = currNeur->derivWrtCostFun;
+                for (int q = 0; q < L2->LSize; q++) // PrevNeuronLoop
                 {
+                    currNeur->derivWeights[q + 1] = currNeur->derivWrtCostFun * L2->output[q];
+
                     if (j == 0)
                     {
                         L2->Neurn[q].derivWrtCostFun = 0;
                     }
                     L2->Neurn[q].derivWrtCostFun += currNeur->derivWrtCostFun * currNeur->Weights[j + 1];
+                }
+            }
+            else
+            {
+                currNeur->derivWeights[0] = currNeur->derivWrtCostFun;
+                for (int q = 0; q < self->InpSize; q++) // PrevNeuronLoop
+                {
+                    currNeur->derivWeights[q + 1] = currNeur->derivWrtCostFun * x[q];
                 }
             }
         }
@@ -225,6 +235,34 @@ Network *InitializeNetwork(int NLay, int *Lsize, int inSize, int outSize)
     return Net;
 }
 
+dataSet *GenerateSineInputData(int N)
+{
+
+    dataSet *datSet = (dataSet *)malloc(sizeof(dataSet) * 1);
+
+    datSet->yAugmented = (double **)malloc(sizeof(double *) * N);
+    datSet->xAugmented = (double **)malloc(sizeof(double *) * N);
+
+    for (int i = 0; i < N; i++)
+    {
+        datSet->yAugmented[i] = (double *)malloc(sizeof(double) * 2);
+        datSet->xAugmented[i] = (double *)malloc(sizeof(double) * 2);
+    }
+
+    double PI = 3.14159265;
+    double maxX, minX, maxY, minY;
+    for (int i = 0; i < N; i++)
+    {
+        srand((unsigned)time(NULL));
+        datSet->xAugmented[0][0] = ((double)rand() / (double)RAND_MAX) * 2*PI;
+        datSet->xAugmented[0][1] = ((double)rand() / (double)RAND_MAX) * 2*PI;
+        datSet->yAugmented[0][0] = sin(datSet->xAugmented[0][0]);
+        datSet->yAugmented[0][1] = cos(datSet->xAugmented[0][1]);
+        
+
+    }
+}
+
 int main()
 {
     int LSize[2] = {2, 2};
@@ -235,7 +273,10 @@ int main()
     Network *Net = InitializeNetwork(NLay, LSize, inSize, outSize);
 
     double x[2] = {0.12, 0.1421};
+    double y[2] = {0.0, 0.0};
     forwardProp(Net, x);
+
+    double RMS = back_prop(Net, y, x);
     printf("\n Outputs \n");
     for (int i = 0; i < 2; i++)
     {
