@@ -27,9 +27,9 @@ double Layer_forwardProp(Layer *self, double *x, int xLen)
         currNeur = (self->Neurn + i);
         self->output[i] = currNeur->Weights[0]; // Initalize with bias
 
-        for (int j = 1; j < (xLen + 1); j++)
+        for (int j = 0; j < xLen; j++)
         {
-            self->output[i] += x[j] * currNeur->Weights[j]; // Propagate input through weights.
+            self->output[i] += x[j] * currNeur->Weights[j + 1]; // Propagate input through weights.
         }
 
         self->output[i] = currNeur->actFunc(self->output[i]); // Non-liner activation function
@@ -93,7 +93,7 @@ void rms(double *y, double *y_hat, int len, double *rmsVal, double *rmsValDer)
 
 void InitializeWeightsAndBiases(Network *Net)
 {
-
+    srand((unsigned) time(NULL));
     for (int i = 0; i < Net->NLayers; i++)
     {
         for (int j = 0; j < Net->LSize[i]; j++)
@@ -156,6 +156,7 @@ Network *InitializeNetwork(int NLay, int *Lsize, int inSize, int outSize)
     for (int i = 0; i < NLay; i++)
     {
         Net->LSize[i] = Lsize[i];
+        Net->Layers[i].LSize = Lsize[i];  //RIght now stored at two locations, should probably change this.
     }
 
     Net->InpSize = inSize;
