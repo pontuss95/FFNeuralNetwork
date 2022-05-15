@@ -37,8 +37,8 @@ typedef struct Network
     void (*CostFun)(double *, double *, int, double *, double *)
 } Network;
 
-double Layer_forwardProp(Layer, double *, int);
-void forwardProp(Network, double *);
+double Layer_forwardProp(Layer*, double*, int);
+void forwardProp(Network*, double*);
 double back_prop(Network, double *, int, double);
 void rms(double *, double *, int, double *, double *);
 double Sigmoid(double);
