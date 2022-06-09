@@ -99,13 +99,13 @@ double back_prop(Network *self, double *y, double *x)
                 currNeur->derivWeights[0] = currNeur->derivWrtCostFun;
                 for (int q = 0; q < L2->LSize; q++) // PrevNeuronLoop
                 {
-                    currNeur->derivWeights[q + 1] = currNeur->derivWrtCostFun * L2->output[q];
+                    currNeur->derivWeights[q + 1] += currNeur->derivWrtCostFun * L2->output[q];
 
                     if (j == 0)
                     {
                         L2->Neurn[q].derivWrtCostFun = 0;
                     }
-                    L2->Neurn[q].derivWrtCostFun += currNeur->derivWrtCostFun * currNeur->Weights[j + 1];
+                    L2->Neurn[q].derivWrtCostFun += currNeur->derivWrtCostFun * currNeur->Weights[j + 1]; // bias first weight
                 }
             }
             else
@@ -113,22 +113,19 @@ double back_prop(Network *self, double *y, double *x)
                 currNeur->derivWeights[0] = currNeur->derivWrtCostFun;
                 for (int q = 0; q < self->InpSize; q++) // PrevNeuronLoop
                 {
-                    currNeur->derivWeights[q + 1] = currNeur->derivWrtCostFun * x[q];
+                    currNeur->derivWeights[q + 1] += currNeur->derivWrtCostFun * x[q];
                 }
             }
         }
+        // After looping through every neuron propagate derivative past the nonlinear activation funf or each previous neuron
+        if (L2 != NULL)
+        {
+            for (int q = 0; q < L2->LSize; q++) // PrevNeuronLoop
+            {
+                L2->Neurn[q].derivWrtCostFun *= L2->Neurn[q].derivActFunVal;
+            }
+        }
     }
-
-    /* for (int i = 0; i < prevToFinalLayer->LSize; i++)
-     {
-         finalLayer->derivWrtCostFun[i] = 0;
-         for (int j = 0; j < finalLayer->LSize; j++)
-         {
-             CurrNeur = (finalLayer->Neurn + j);
-             finalLayer->derivWrtCostFun[i] += CurrNeur->Weights[i] * CurrNeur->derivActFunc(finalLayer->output[j]); //
-             CurrNeur->Weights[i] * CurrNeur->Weights[i] * CurrNeur->derivActFunc(finalLayer->output[j]);
-         }
-     }*/
 
     return cost;
 }
@@ -137,17 +134,48 @@ void rms(double *y, double *y_hat, int len, double *rmsVal, double *rmsValDer)
 {
     *rmsVal = 0;
     *rmsValDer = 0;
+    double cumError = 0;
     int i;
     for (i = 0; i < len; i++)
     {
-        *rmsVal += pow(y[i], y_hat[i]);
-    }
-    for (i = 0; i < len; i++)
-    {
-        rmsValDer[i] = (y_hat[i] - y[i]) / (sqrt((double)len) * sqrt(*rmsVal));
+        *rmsVal += pow(y[i] - y_hat[i], 2);
+        cumError += y[i]- y_hat[i];
     }
     *rmsVal /= (double)len;
     *rmsVal = sqrt(*rmsVal);
+
+    for (i = 0; i < len; i++)
+    {
+        rmsValDer[i] = (-(y[i]-y_hat[i])*2) / (*rmsVal*(double)len);
+    }
+ 
+}
+
+void gradientDescent(Network *net, int NDataPoints, float learnRate)
+{
+    int prevLaySize = 0;
+    for (int i = 0; i < net->NLayers; i++)
+    {
+        Layer *currLay = &net->Layers[i];
+        if (i != 0)
+        {
+            prevLaySize = (currLay - 1)->LSize;
+        }
+        else
+        {
+            prevLaySize = net->InpSize;
+        }
+        for (int j = 0; j < currLay->LSize; j++)
+        {
+            Neuron *currNeur = &currLay->Neurn[j];
+
+            for (int q = 0; q < prevLaySize+1; q++)
+            {
+                currNeur->Weights[i] += -(currNeur->derivWeights[i] / ((double)NDataPoints)) * learnRate;
+                currNeur->derivWeights[i] = 0;
+            }
+        }
+    }
 }
 
 void InitializeWeightsAndBiases(Network *Net)
@@ -229,7 +257,7 @@ Network *InitializeNetwork(int NLay, int *Lsize, int inSize, int outSize)
         Net->LSize[i] = Lsize[i];
         Net->Layers[i].LSize = Lsize[i]; // RIght now stored at two locations, should probably change this.
     }
-    
+
     InitializeLayers(Net);
     InitializeWeightsAndBiases(Net);
     return Net;
@@ -246,40 +274,85 @@ dataSet *GenerateSineInputData(int N)
     for (int i = 0; i < N; i++)
     {
         datSet->yAugmented[i] = (double *)malloc(sizeof(double) * 2);
-        datSet->xAugmented[i] = (double *)malloc(sizeof(double) * 2);
+        datSet->xAugmented[i] = (double *)malloc(sizeof(double) * 1);
     }
 
     double PI = 3.14159265;
-    double maxX, minX, maxY, minY;
     for (int i = 0; i < N; i++)
     {
         srand((unsigned)time(NULL));
-        datSet->xAugmented[0][0] = ((double)rand() / (double)RAND_MAX) * 2*PI;
-        datSet->xAugmented[0][1] = ((double)rand() / (double)RAND_MAX) * 2*PI;
-        datSet->yAugmented[0][0] = sin(datSet->xAugmented[0][0]);
-        datSet->yAugmented[0][1] = cos(datSet->xAugmented[0][1]);
-        
-
+        datSet->xAugmented[i][0] = ((double)rand() / (double)RAND_MAX) * 2 * PI;
+        datSet->yAugmented[i][0] = sin(datSet->xAugmented[i][0]);
+        datSet->yAugmented[i][1] = cos(datSet->xAugmented[i][0]);
     }
+
+    return datSet;
+}
+int checkForNanVals(Network *net)
+{
+    int prevLaySize = 0;
+    int retVal = 0;
+    for (int i = 0; i < net->NLayers; i++)
+    {
+        Layer *currLay = &net->Layers[i];
+        if (i != 0)
+        {
+            prevLaySize = (currLay - 1)->LSize;
+        }
+        else
+        {
+            prevLaySize = net->InpSize;
+        }
+        for (int j = 0; j < currLay->LSize; j++)
+        {
+            Neuron *currNeur = &currLay->Neurn[j];
+            if (currNeur->derivActFunc != currNeur->derivActFunc)
+            {
+                printf("Nan-detected derivActFun lay %i neuron %i\n", i, j);
+                retVal = 1;
+            }
+            for (int q = 0; q < prevLaySize+1; q++)
+            {
+                if (currNeur->Weights[q] != currNeur->Weights[q])
+                {
+                    printf("Nan-detected weights lay %i neuron %i weight %i \n", i, j, q);
+                    retVal = 1;
+                }
+            }
+        }
+    }
+    return retVal;
 }
 
 int main()
 {
     int LSize[2] = {2, 2};
     int NLay = 2;
-    int inSize = 2;
+    int inSize = 1;
     int outSize = 2;
 
     Network *Net = InitializeNetwork(NLay, LSize, inSize, outSize);
-
-    double x[2] = {0.12, 0.1421};
-    double y[2] = {0.0, 0.0};
-    forwardProp(Net, x);
-
-    double RMS = back_prop(Net, y, x);
-    printf("\n Outputs \n");
-    for (int i = 0; i < 2; i++)
+    dataSet *datSet = GenerateSineInputData(1000);
+    double RMS = 0;
+    for (int j = 0; j < 10; j++)
     {
-        printf("%f  ", Net->Layers[1].output[i]);
+        for (int i = 0; i < 1000; i++)
+        {
+            forwardProp(Net, datSet->xAugmented[i]);
+            RMS += back_prop(Net, datSet->yAugmented[i], datSet->xAugmented[i]);
+
+            if(checkForNanVals(Net))
+            {
+                printf("Found nans inp %i iteration %i\n\n", i, j);
+            }
+        }
+
+        printf("RMS Val %.5f Iteration: %i\n", RMS/1000, j);
+        gradientDescent(Net, 1000, 0.000001);
     }
+    // printf("\n Outputs \n");
+    // for (int i = 0; i < 2; i++)
+    //{
+    //    printf("%f  ", Net->Layers[1].output[i]);
+    //}
 }
