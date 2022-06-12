@@ -27,5 +27,7 @@
     "**/.*/**",
     "**/.vscode",
     "**/.vscode/**"
-  ]
+  ],
+  "C_Cpp_Runner.cppCompilerPath": "g++",
+  "C_Cpp_Runner.useMsvc": false
 }

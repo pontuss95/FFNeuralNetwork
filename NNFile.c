@@ -11,7 +11,7 @@ void insertMatrixElem(DMatrix *Matrix, double elem, int row, int col)
 
 double Sigmoid(double val)
 {
-    return 1 / (1 + exp(-val));
+    return 1.0 / (1.0 + exp(-val));
 }
 
 double DerivSigmoid(double val)
@@ -70,7 +70,7 @@ double back_prop(Network *self, double *y, double *x)
     Neuron *currNeur = NULL;
     for (int i = 0; i < finalLayer->LSize; i++)
     {
-        currNeur = &(self->Layers->Neurn[i]);
+        currNeur = &(finalLayer->Neurn[i]);
         currNeur->derivWrtCostFun = self->DCostDLastLay[i] * currNeur->derivActFunVal;
     }
 
@@ -139,20 +139,25 @@ void rms(double *y, double *y_hat, int len, double *rmsVal, double *rmsValDer)
     for (i = 0; i < len; i++)
     {
         *rmsVal += pow(y[i] - y_hat[i], 2);
-        cumError += y[i]- y_hat[i];
+        cumError += y[i] - y_hat[i];
     }
     *rmsVal /= (double)len;
     *rmsVal = sqrt(*rmsVal);
 
+    if(rmsValDer != NULL){
     for (i = 0; i < len; i++)
     {
-        rmsValDer[i] = (-(y[i]-y_hat[i])*2) / (*rmsVal*(double)len);
+        rmsValDer[i] = (-(y[i] - y_hat[i]) * 2) / (*rmsVal * (double)len);
     }
- 
+    }
 }
 
-void gradientDescent(Network *net, int NDataPoints, float learnRate)
+void gradientDescent(Network *net, int NDataPoints, double learnRate, double RMSDecay, double momentumDecay)
 {
+    double stepLength = 0;
+    double tmp2 = 0;
+    double tmp = 0;
+    double eps = 1e-15;
     int prevLaySize = 0;
     for (int i = 0; i < net->NLayers; i++)
     {
@@ -169,10 +174,26 @@ void gradientDescent(Network *net, int NDataPoints, float learnRate)
         {
             Neuron *currNeur = &currLay->Neurn[j];
 
-            for (int q = 0; q < prevLaySize+1; q++)
+            for (int q = 0; q < prevLaySize + 1; q++)
             {
-                currNeur->Weights[i] += -(currNeur->derivWeights[i] / ((double)NDataPoints)) * learnRate;
-                currNeur->derivWeights[i] = 0;
+                //RMSProp algorithm
+                tmp2 = RMSDecay*currNeur->movAvgSquareDer[q] + 
+                (1-RMSDecay)*pow(currNeur->derivWeights[q], 2.0);
+                
+                if(tmp2 != tmp2)
+                {
+                    printf("NaN\n");
+                }
+                currNeur->movAvgSquareDer[q] = tmp2;
+                tmp = sqrt(currNeur->movAvgSquareDer[q]+eps);
+                currNeur->momentumGrad[q] = momentumDecay*currNeur->momentumGrad[q] - learnRate/(tmp)*currNeur->derivWeights[q];
+                currNeur->Weights[q] += currNeur->momentumGrad[q];
+                currNeur->derivWeights[q] = 0;
+
+                if(currNeur->Weights[q]!=currNeur->Weights[q]){
+                    printf("NaN\n");
+                }
+                
             }
         }
     }
@@ -188,16 +209,19 @@ void InitializeWeightsAndBiases(Network *Net)
             int iterVar = 0;
             if (i == 0)
             {
-                iterVar = Net->InpSize + 1;
+                iterVar = Net->InpSize + 1; //+1 due to bias
             }
             else
             {
-                iterVar = Net->LSize[i - 1] + 1;
+                iterVar = Net->LSize[i - 1] + 1; //+1 due to bias
             }
             for (int q = 0; q < iterVar; q++)
             {
                 Net->Layers[i].Neurn[j].Weights[q] = (double)rand() / (double)RAND_MAX;
                 Net->Layers[i].Neurn[j].derivWeights[q] = 0;
+                Net->Layers[i].Neurn[j].movAvgSquareDer[q] = 0.01;
+                Net->Layers[i].Neurn[j].momentumGrad[q] = 0;
+
             }
         }
     }
@@ -229,11 +253,15 @@ void InitializeLayers(Network *Net)
             {
                 Net->Layers[i].Neurn[j].Weights = (double *)malloc(sizeof(double) * (Net->InpSize + 1));
                 Net->Layers[i].Neurn[j].derivWeights = (double *)malloc(sizeof(double) * (Net->InpSize + 1));
+                Net->Layers[i].Neurn[j].movAvgSquareDer = (double *)malloc(sizeof(double) * (Net->InpSize + 1));
+                Net->Layers[i].Neurn[j].momentumGrad = (double *)malloc(sizeof(double) * (Net->InpSize + 1));
             }
             else
             {
                 (Net->Layers[i].Neurn[j].Weights) = (double *)malloc(sizeof(double) * (Net->LSize[i - 1] + 1));
                 (Net->Layers[i].Neurn[j].derivWeights) = (double *)malloc(sizeof(double) * (Net->LSize[i - 1] + 1));
+                (Net->Layers[i].Neurn[j].movAvgSquareDer) = (double *)malloc(sizeof(double) * (Net->LSize[i - 1] + 1));
+                (Net->Layers[i].Neurn[j].momentumGrad) = (double *)malloc(sizeof(double) * (Net->LSize[i - 1] + 1));
             }
         }
     }
@@ -311,7 +339,7 @@ int checkForNanVals(Network *net)
                 printf("Nan-detected derivActFun lay %i neuron %i\n", i, j);
                 retVal = 1;
             }
-            for (int q = 0; q < prevLaySize+1; q++)
+            for (int q = 0; q < prevLaySize + 1; q++)
             {
                 if (currNeur->Weights[q] != currNeur->Weights[q])
                 {
@@ -324,32 +352,112 @@ int checkForNanVals(Network *net)
     return retVal;
 }
 
+void printAllVals(Network *Net)
+{
+    // For debugging purposes
+    int nWeights = 0;
+    for (int i = 0; i < Net->NLayers; i++)
+    { // For every layer
+        printf("\n\nVals for layer %i", i);
+        if (i == 0)
+        {
+            nWeights = Net->InpSize + 1;
+        }
+        else
+        {
+            nWeights = Net->LSize[i - 1] + 1;
+        }
+        Layer *currLay = &(Net->Layers[i]);
+
+        for (int j = 0; j < Net->LSize[i]; j++)
+        { // For every neyron
+            Neuron currNeur = currLay->Neurn[j];
+            printf("\n Neuron %i\n", j);
+            printf("derivWrtCostFun: %.3f,  derivActFunVal: %.3f, output: %.3f\n", currNeur.derivWrtCostFun, currNeur.derivActFunVal, currLay->output[j]);
+            printf("Weights\n");
+            for (int q = 0; q < nWeights; q++)
+            { // For every weight
+                printf("%.4f, ", currNeur.Weights[q]);
+            }
+            printf("\nderivWeights\n");
+            for (int q = 0; q < nWeights; q++)
+            { // For every weight
+                printf("%.4f, ", currNeur.derivWeights[q]);
+            }
+        }
+    }
+}
+
 int main()
 {
-    int LSize[2] = {2, 2};
-    int NLay = 2;
+    int LSize[3] = {50, 50, 2};
+    int NLay = 3;
     int inSize = 1;
     int outSize = 2;
 
     Network *Net = InitializeNetwork(NLay, LSize, inSize, outSize);
-    dataSet *datSet = GenerateSineInputData(1000);
-    double RMS = 0;
-    for (int j = 0; j < 10; j++)
-    {
-        for (int i = 0; i < 1000; i++)
-        {
-            forwardProp(Net, datSet->xAugmented[i]);
-            RMS += back_prop(Net, datSet->yAugmented[i], datSet->xAugmented[i]);
 
-            if(checkForNanVals(Net))
+    // double x[2] = {0.5, 0.5};
+    // double y[2] = {1, 2};
+
+    // printf("SigmoidPrint manual %.3f, fCall: %.3f, FPointcall: %.3f\n\n", 1.0 / (1.0 + exp(-2)), Sigmoid(2), Net->Layers->Neurn->actFunc(2));
+    // for(int i = 0; i<1000; i++)
+    //{
+    //     forwardProp(Net, x);
+    //     double RMS = back_prop(Net, y, x);
+    //      if(i%100 == 0){
+    //
+    //        printf("RMS %.3f epoch: %i\n", RMS, i);
+    //  }
+    //   gradientDescent(Net, 1, 0.01);
+    //}
+
+    // printAllVals(Net);
+    int NData = 10000;
+    dataSet *datSet = GenerateSineInputData(NData);
+    double RMS = 0;
+    double RMSAcc = 0;
+    double RMSAccCount = 0;
+    int Epochs = 10000;
+    int BatchSize = 5000;
+    int id = 0;
+    double LRate = 0;
+    srand((unsigned)time(NULL));
+    for (int j = 0; j < Epochs; j++)
+    {
+        for (int i = 0; i < BatchSize; i++)
+        {
+            id = (int)floor(((double)rand() / (double)RAND_MAX) * NData - 0.000001);
+            forwardProp(Net, datSet->xAugmented[id]);
+            RMS += back_prop(Net, datSet->yAugmented[id], datSet->xAugmented[id]);
+
+            if (checkForNanVals(Net))
             {
                 printf("Found nans inp %i iteration %i\n\n", i, j);
             }
         }
 
-        printf("RMS Val %.5f Iteration: %i\n", RMS/1000, j);
-        gradientDescent(Net, 1000, 0.000001);
+        RMS = RMS / (double)BatchSize;
+        RMSAcc += RMS;
+        RMSAccCount++;
+        RMS = 0;
+        //double eps = (double)j / Epochs; // From 0 to 1
+        //1e-2 to 1e-7
+        //double LRate = 0.01 * (1.0 - eps) + eps * 0.0000001;
+
+        double eps = (double)j / Epochs; // From 0 to 1
+        LRate = pow(10,-2*(1-eps) -7*(eps));
+        if (j % 100 == 0)
+        {
+
+            printf("RMS Val %.5f Epoch: %i LRate: %.10f \n", RMSAcc / RMSAccCount, j, LRate);
+            RMSAcc = 0;
+            RMSAccCount = 0;
+        }
+        
+        gradientDescent(Net, BatchSize, LRate, 0.9, 0.90);
     }
+
     // printf("\n Outputs \n");
     // for (int i = 0; i < 2; i++)
     //{
