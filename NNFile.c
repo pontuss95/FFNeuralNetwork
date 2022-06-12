@@ -390,7 +390,7 @@ void printAllVals(Network *Net)
 
 int main()
 {
-    int LSize[3] = {50, 50, 2};
+    int LSize[3] = {30, 30, 2};
     int NLay = 3;
     int inSize = 1;
     int outSize = 2;
@@ -418,8 +418,8 @@ int main()
     double RMS = 0;
     double RMSAcc = 0;
     double RMSAccCount = 0;
-    int Epochs = 10000;
-    int BatchSize = 5000;
+    int Epochs = 5001;
+    int BatchSize = 1000;
     int id = 0;
     double LRate = 0;
     srand((unsigned)time(NULL));
@@ -431,10 +431,10 @@ int main()
             forwardProp(Net, datSet->xAugmented[id]);
             RMS += back_prop(Net, datSet->yAugmented[id], datSet->xAugmented[id]);
 
-            if (checkForNanVals(Net))
+       /*     if (checkForNanVals(Net))
             {
                 printf("Found nans inp %i iteration %i\n\n", i, j);
-            }
+            }*/
         }
 
         RMS = RMS / (double)BatchSize;
@@ -446,16 +446,16 @@ int main()
         //double LRate = 0.01 * (1.0 - eps) + eps * 0.0000001;
 
         double eps = (double)j / Epochs; // From 0 to 1
-        LRate = pow(10,-2*(1-eps) -7*(eps));
-        if (j % 100 == 0)
+        LRate = pow(10,-2*(1-eps) -9*(eps));
+        if (j % 200 == 0)
         {
 
-            printf("RMS Val %.5f Epoch: %i LRate: %.10f \n", RMSAcc / RMSAccCount, j, LRate);
+            printf("RMS Val %.9f Epoch: %i LRate: %.10f \n", RMSAcc / RMSAccCount, j, LRate);
             RMSAcc = 0;
             RMSAccCount = 0;
         }
         
-        gradientDescent(Net, BatchSize, LRate, 0.9, 0.90);
+        gradientDescent(Net, BatchSize, LRate, 0.9, 0.9);
     }
 
     // printf("\n Outputs \n");

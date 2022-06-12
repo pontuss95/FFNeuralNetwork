@@ -9,7 +9,7 @@
       "stopAtEntry": false,
       "externalConsole": false,
       "cwd": "/home/ponsvens/FFNeuralNetwork",
-      "program": "/home/ponsvens/FFNeuralNetwork/build/Debug/outDebug",
+      "program": "/home/ponsvens/FFNeuralNetwork/build/Release/outRelease",
       "MIMode": "gdb",
       "miDebuggerPath": "/bin/gdb",
       "setupCommands": [
