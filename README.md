@@ -1,3 +1,6 @@
+Fully connected neural network implementation that utilizes Momentum and RPMSProp to perform gradient descent.
+
+
 TODO:
 
 1. Add functionality to save trained network and to free allocated heap memory.
