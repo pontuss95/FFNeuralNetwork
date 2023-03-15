@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <float.h>
+#include <signal.h>
 
 typedef struct DMatrix
 {

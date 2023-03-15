@@ -9,6 +9,11 @@ void insertMatrixElem(DMatrix *Matrix, double elem, int row, int col)
     Matrix->p[row + col * Matrix->NRows] = elem;
 }*/
 
+void sighandler(int signum) {
+   printf("\nTraining aborted with CTRL+C. Handling of this will be implemented\n");
+   exit(1);
+}
+
 double Sigmoid(double val)
 {
     return 1.0 / (1.0 + exp(-val));
@@ -390,36 +395,23 @@ void printAllVals(Network *Net)
 
 int main()
 {
-    int LSize[3] = {30, 30, 2};
+    signal(SIGINT, sighandler);
+    int LSize[3] = {100, 10, 2};
     int NLay = 3;
     int inSize = 1;
     int outSize = 2;
 
     Network *Net = InitializeNetwork(NLay, LSize, inSize, outSize);
 
-    // double x[2] = {0.5, 0.5};
-    // double y[2] = {1, 2};
 
-    // printf("SigmoidPrint manual %.3f, fCall: %.3f, FPointcall: %.3f\n\n", 1.0 / (1.0 + exp(-2)), Sigmoid(2), Net->Layers->Neurn->actFunc(2));
-    // for(int i = 0; i<1000; i++)
-    //{
-    //     forwardProp(Net, x);
-    //     double RMS = back_prop(Net, y, x);
-    //      if(i%100 == 0){
-    //
-    //        printf("RMS %.3f epoch: %i\n", RMS, i);
-    //  }
-    //   gradientDescent(Net, 1, 0.01);
-    //}
-
-    // printAllVals(Net);
-    int NData = 10000;
+    printAllVals(Net);
+    int NData = 100000;
     dataSet *datSet = GenerateSineInputData(NData);
     double RMS = 0;
     double RMSAcc = 0;
     double RMSAccCount = 0;
     int Epochs = 5001;
-    int BatchSize = 1000;
+    int BatchSize = NData;
     int id = 0;
     double LRate = 0;
     srand((unsigned)time(NULL));
@@ -463,4 +455,5 @@ int main()
     //{
     //    printf("%f  ", Net->Layers[1].output[i]);
     //}
+    printAllVals(Net);
 }
