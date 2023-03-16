@@ -1,4 +1,4 @@
-#include "NNFile.h"
+#include "FFNeuralNet.h"
 
 /*double extractMatrixElem(DMatrix Matrix, int row, int col)
 {
