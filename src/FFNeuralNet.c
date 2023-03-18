@@ -194,7 +194,8 @@ void gradientDescent(Network *net, int NDataPoints, double learnRate, double RMS
                 tmp = sqrt(currNeur->movAvgSquareDer[q]+eps);
                 currNeur->momentumGrad[q] = momentumDecay*currNeur->momentumGrad[q] - (learnRate/(tmp))*currNeur->derivWeights[q];
 
-                currNeur->Weights[q] += currNeur->momentumGrad[q];
+                currNeur->Weights[q] += currNeur->momentumGrad[q]- 0.0000001*2*currNeur->Weights[q]; //Gradient step and L2Normalization
+
                 currNeur->derivWeights[q] = 0;
 
                 if(currNeur->Weights[q]!=currNeur->Weights[q]){
@@ -224,7 +225,7 @@ void InitializeWeightsAndBiases(Network *Net)
             }
             for (int q = 0; q < iterVar; q++)
             {
-                Net->Layers[i].Neurn[j].Weights[q] = 1;//((double)rand() / (double)RAND_MAX) - 0.5;
+                Net->Layers[i].Neurn[j].Weights[q] = ((double)rand() / (double)RAND_MAX) - 0.5;
                 Net->Layers[i].Neurn[j].derivWeights[q] = 0;
                 Net->Layers[i].Neurn[j].movAvgSquareDer[q] = 0.01;
                 Net->Layers[i].Neurn[j].momentumGrad[q] = 0;
@@ -341,14 +342,11 @@ dataSet *generateConstData(void)
         datSet->xAugmented[i] = (double *)malloc(sizeof(double) * 2);
     }
 
-   
+    datSet->yAugmented[0][0] = 1;
+    datSet->yAugmented[0][1] = 1;
 
-        
-        datSet->yAugmented[0][0] = 1;
-        datSet->yAugmented[0][1] = 1;
-    
-        datSet->xAugmented[0][0] = 2;
-        datSet->xAugmented[0][1] = 2;
+    datSet->xAugmented[0][0] = 2;
+    datSet->xAugmented[0][1] = 2;
 
     datSet->nInps = 2;
     datSet->nOuts = 2;
@@ -364,23 +362,23 @@ dataSet *generateStep(int N)
     datSet->yAugmented = (double **)malloc(sizeof(double *) * N);
     datSet->xAugmented = (double **)malloc(sizeof(double *) * N);
 
-    for (int i = 0; i < 1; i++)
+    for (int i = 0; i < N; i++)
     {
-        datSet->yAugmented[i] = (double *)malloc(sizeof(double) * 1);
-        datSet->xAugmented[i] = (double *)malloc(sizeof(double) * 1);
+        datSet->yAugmented[i] = (double *)malloc(sizeof(double) * 2);
+        datSet->xAugmented[i] = (double *)malloc(sizeof(double) * 2);
     }
 
    
 
        for(int i = 0; i<N; i++){ 
-        if(i>0.5){
+        if(i/N>0.5){
 
-        datSet->yAugmented[0][i] = 1;
+        datSet->yAugmented[i][0] = 1;
         }else
         {
-        datSet->yAugmented[0][i] = 0;
+        datSet->yAugmented[i][0] = 0;
         }
-        datSet->xAugmented[0][i] = i/N;
+        datSet->xAugmented[i][0] = i/N;
 
        }
     datSet->nInps = 1;
@@ -451,7 +449,7 @@ void printAllVals(Network *Net)
             printf("Weights\n");
             for (int q = 0; q < nWeights; q++)
             { // For every weight
-                printf("%.4f, ", currNeur.Weights[q]);
+                printf("%.8f, ", currNeur.Weights[q]);
             }
             printf("\nderivWeights\n");
             for (int q = 0; q < nWeights; q++)
@@ -528,11 +526,11 @@ dataSet *formatCsvData(Array *inpArray, Array *outArray)
             {
                 if (outArray->Array[j][i] > yMax[i])
                 {
-                    yMax[i] = inpArray->Array[j][i];
+                    yMax[i] = outArray->Array[j][i];
                 }
                 if (outArray->Array[j][i] < yMin[i])
                 {
-                    yMin[i] = inpArray->Array[j][i];
+                    yMin[i] = outArray->Array[j][i];
                 }
             }
         }
@@ -626,13 +624,13 @@ int main()
 
     Array *inpArray = readCsv(fInp);
     Array *outArray = readCsv(fOut);
-    //dataSet *csvDataSet = formatCsvData(inpArray, outArray);
+    dataSet *csvDataSet = formatCsvData(inpArray, outArray);
     //dataSet *csvDataSet = generateConstData();
-    dataSet *csvDataSet = generateStep(100);
-    //printData(csvDataSet);
+    //dataSet *csvDataSet = generateStep(100);
+    printData(csvDataSet);
 
     signal(SIGINT, sighandler);
-    int LSize[2] = {10, 1};
+    int LSize[2] = {50, 1};
     int NLay = 2;
  
 
@@ -649,7 +647,7 @@ int main()
     int Epochs = 5000;
     int BatchSize = csvDataSet->nDataPoints;
     int id = 0;
-    double LRate = 0.001;
+    double LRate = 0.01;
     srand((unsigned)time(NULL));
     for (int j = 0; j < Epochs; j++)
     {
@@ -665,8 +663,7 @@ int main()
             }*/
         }
 
-        printAllVals(Net);
-        return 0;
+        //printAllVals(Net);
 
         RMS = RMS / (double)BatchSize;
         RMSAcc += RMS;
@@ -677,7 +674,7 @@ int main()
         //double LRate = 0.01 * (1.0 - eps) + eps * 0.0000001;
 
         double eps = (double)j / Epochs; // From 0 to 1
-        //LRate = pow(10,-1*(1-eps) -4*(eps));
+        LRate = pow(10,-2*(1-eps) -3*(eps));
         if (j % 100 == 0)
         {
 
@@ -686,7 +683,7 @@ int main()
             RMSAccCount = 0;
         }
         
-        gradientDescent(Net, BatchSize, LRate, 0.9, 0.9); //First param is RMSPROP and second is Momentum
+        gradientDescent(Net, BatchSize, LRate, 0.9, 0); //First param is RMSPROP and second is Momentum
     }
 
     // printf("\n Outputs \n");
