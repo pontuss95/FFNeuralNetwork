@@ -1,4 +1,5 @@
 #include "FFNeuralNet.h"
+#include "floatCsvReader.h"
 
 /*double extractMatrixElem(DMatrix Matrix, int row, int col)
 {
@@ -59,7 +60,7 @@ void forwardProp(Network *self, double *x)
     for (int i = 1; i < self->NLayers; i++)
     {
         currLayer = (self->Layers + i);
-        Layer_forwardProp(currLayer, (currLayer - 1)->output, (currLayer)->LSize);
+        Layer_forwardProp(currLayer, (currLayer - 1)->output, (currLayer - 1)->LSize);
     }
 }
 
@@ -191,7 +192,8 @@ void gradientDescent(Network *net, int NDataPoints, double learnRate, double RMS
                 }
                 currNeur->movAvgSquareDer[q] = tmp2;
                 tmp = sqrt(currNeur->movAvgSquareDer[q]+eps);
-                currNeur->momentumGrad[q] = momentumDecay*currNeur->momentumGrad[q] - learnRate/(tmp)*currNeur->derivWeights[q];
+                currNeur->momentumGrad[q] = momentumDecay*currNeur->momentumGrad[q] - (learnRate/(tmp))*currNeur->derivWeights[q];
+
                 currNeur->Weights[q] += currNeur->momentumGrad[q];
                 currNeur->derivWeights[q] = 0;
 
@@ -209,7 +211,7 @@ void InitializeWeightsAndBiases(Network *Net)
     srand((unsigned)time(NULL));
     for (int i = 0; i < Net->NLayers; i++)
     {
-        for (int j = 0; j < Net->LSize[i]; j++)
+        for (int j = 0; j < Net->Layers[i].LSize; j++)
         {
             int iterVar = 0;
             if (i == 0)
@@ -218,11 +220,11 @@ void InitializeWeightsAndBiases(Network *Net)
             }
             else
             {
-                iterVar = Net->LSize[i - 1] + 1; //+1 due to bias
+                iterVar = Net->Layers[i-1].LSize + 1; //+1 due to bias
             }
             for (int q = 0; q < iterVar; q++)
             {
-                Net->Layers[i].Neurn[j].Weights[q] = (double)rand() / (double)RAND_MAX;
+                Net->Layers[i].Neurn[j].Weights[q] = 1;//((double)rand() / (double)RAND_MAX) - 0.5;
                 Net->Layers[i].Neurn[j].derivWeights[q] = 0;
                 Net->Layers[i].Neurn[j].movAvgSquareDer[q] = 0.01;
                 Net->Layers[i].Neurn[j].momentumGrad[q] = 0;
@@ -236,13 +238,13 @@ void InitializeLayers(Network *Net)
 {
     for (int i = 0; i < Net->NLayers; i++)
     {
-        Net->Layers[i].Neurn = (Neuron *)malloc(sizeof(Neuron) * Net->LSize[i]);
-        Net->Layers[i].output = (double *)malloc(sizeof(double) * Net->LSize[i]);
+        Net->Layers[i].Neurn = (Neuron *)malloc(sizeof(Neuron) * Net->Layers[i].LSize);
+        Net->Layers[i].output = (double *)malloc(sizeof(double) * Net->Layers[i].LSize);
         // Net->Layers[i].derivWrtCostFun = (double *)malloc(sizeof(double) * Net->LSize[i]);
     }
     for (int i = 0; i < Net->NLayers; i++)
     {
-        for (int j = 0; j < Net->LSize[i]; j++)
+        for (int j = 0; j < Net->Layers[i].LSize; j++)
         {
             if (i == (Net->NLayers - 1))
             {
@@ -263,10 +265,10 @@ void InitializeLayers(Network *Net)
             }
             else
             {
-                (Net->Layers[i].Neurn[j].Weights) = (double *)malloc(sizeof(double) * (Net->LSize[i - 1] + 1));
-                (Net->Layers[i].Neurn[j].derivWeights) = (double *)malloc(sizeof(double) * (Net->LSize[i - 1] + 1));
-                (Net->Layers[i].Neurn[j].movAvgSquareDer) = (double *)malloc(sizeof(double) * (Net->LSize[i - 1] + 1));
-                (Net->Layers[i].Neurn[j].momentumGrad) = (double *)malloc(sizeof(double) * (Net->LSize[i - 1] + 1));
+                (Net->Layers[i].Neurn[j].Weights) = (double *)malloc(sizeof(double) * (Net->Layers[i - 1].LSize + 1));
+                (Net->Layers[i].Neurn[j].derivWeights) = (double *)malloc(sizeof(double) * (Net->Layers[i - 1].LSize + 1));
+                (Net->Layers[i].Neurn[j].movAvgSquareDer) = (double *)malloc(sizeof(double) * (Net->Layers[i - 1].LSize + 1));
+                (Net->Layers[i].Neurn[j].momentumGrad) = (double *)malloc(sizeof(double) * (Net->Layers[i - 1].LSize + 1));
             }
         }
     }
@@ -282,12 +284,10 @@ Network *InitializeNetwork(int NLay, int *Lsize, int inSize, int outSize)
 
     Net->Layers = (Layer *)malloc(sizeof(Layer) * NLay);
     Net->NLayers = NLay;
-    Net->LSize = (int *)malloc(sizeof(int) * NLay);
     Net->DCostDLastLay = (double *)malloc(sizeof(double) * Net->OutSize);
 
     for (int i = 0; i < NLay; i++)
     {
-        Net->LSize[i] = Lsize[i];
         Net->Layers[i].LSize = Lsize[i]; // RIght now stored at two locations, should probably change this.
     }
 
@@ -311,16 +311,85 @@ dataSet *GenerateSineInputData(int N)
     }
 
     double PI = 3.14159265;
+    srand((unsigned)time(NULL));
     for (int i = 0; i < N; i++)
     {
-        srand((unsigned)time(NULL));
         datSet->xAugmented[i][0] = ((double)rand() / (double)RAND_MAX) * 2 * PI;
         datSet->yAugmented[i][0] = sin(datSet->xAugmented[i][0]);
         datSet->yAugmented[i][1] = cos(datSet->xAugmented[i][0]);
     }
 
+    datSet->nInps = 1;
+    datSet->nOuts = 2;
+    datSet->nDataPoints = N;
+
     return datSet;
 }
+
+
+dataSet *generateConstData(void)
+{
+
+    dataSet *datSet = (dataSet *)malloc(sizeof(dataSet) * 1);
+
+    datSet->yAugmented = (double **)malloc(sizeof(double *) * 1);
+    datSet->xAugmented = (double **)malloc(sizeof(double *) * 1);
+
+    for (int i = 0; i < 1; i++)
+    {
+        datSet->yAugmented[i] = (double *)malloc(sizeof(double) * 2);
+        datSet->xAugmented[i] = (double *)malloc(sizeof(double) * 2);
+    }
+
+   
+
+        
+        datSet->yAugmented[0][0] = 1;
+        datSet->yAugmented[0][1] = 1;
+    
+        datSet->xAugmented[0][0] = 2;
+        datSet->xAugmented[0][1] = 2;
+
+    datSet->nInps = 2;
+    datSet->nOuts = 2;
+    datSet->nDataPoints = 1;
+
+    return datSet;
+}
+dataSet *generateStep(int N)
+{
+
+    dataSet *datSet = (dataSet *)malloc(sizeof(dataSet) * 1);
+
+    datSet->yAugmented = (double **)malloc(sizeof(double *) * N);
+    datSet->xAugmented = (double **)malloc(sizeof(double *) * N);
+
+    for (int i = 0; i < 1; i++)
+    {
+        datSet->yAugmented[i] = (double *)malloc(sizeof(double) * 1);
+        datSet->xAugmented[i] = (double *)malloc(sizeof(double) * 1);
+    }
+
+   
+
+       for(int i = 0; i<N; i++){ 
+        if(i>0.5){
+
+        datSet->yAugmented[0][i] = 1;
+        }else
+        {
+        datSet->yAugmented[0][i] = 0;
+        }
+        datSet->xAugmented[0][i] = i/N;
+
+       }
+    datSet->nInps = 1;
+    datSet->nOuts = 1;
+    datSet->nDataPoints = N;
+
+    return datSet;
+}
+
 int checkForNanVals(Network *net)
 {
     int prevLaySize = 0;
@@ -370,14 +439,14 @@ void printAllVals(Network *Net)
         }
         else
         {
-            nWeights = Net->LSize[i - 1] + 1;
+            nWeights = Net->Layers[i-1].LSize + 1;
         }
         Layer *currLay = &(Net->Layers[i]);
 
-        for (int j = 0; j < Net->LSize[i]; j++)
+        for (int j = 0; j < Net->Layers[i].LSize; j++)
         { // For every neyron
             Neuron currNeur = currLay->Neurn[j];
-            printf("\n Neuron %i\n", j);
+            printf("\nNeuron %i\n", j);
             printf("derivWrtCostFun: %.3f,  derivActFunVal: %.3f, output: %.3f\n", currNeur.derivWrtCostFun, currNeur.derivActFunVal, currLay->output[j]);
             printf("Weights\n");
             for (int q = 0; q < nWeights; q++)
@@ -391,43 +460,213 @@ void printAllVals(Network *Net)
             }
         }
     }
+    printf("\n");
+fflush(stdout);
+}
+
+
+
+dataSet *formatCsvData(Array *inpArray, Array *outArray)
+{
+
+    if (inpArray->numRows != outArray->numRows)
+    {
+        return NULL;
+    }
+    else
+    {
+
+        dataSet *datSet = malloc(sizeof(dataSet));
+        unsigned int nDataPoints = inpArray->numRows;
+        unsigned int nInps = inpArray->numCols;
+        unsigned int nOuts = outArray->numCols;
+        datSet->nDataPoints = nDataPoints;
+        datSet->nInps = nInps;
+        datSet->nOuts = nOuts;
+        datSet->xGain = malloc(sizeof(double) * nInps);
+        datSet->xOffs = malloc(sizeof(double) * nInps);
+        datSet->yGain = malloc(sizeof(double) * nOuts);
+        datSet->yOffs = malloc(sizeof(double) * nOuts);
+
+        datSet->yAugmented = malloc(sizeof(double *) * nDataPoints);
+        datSet->xAugmented = malloc(sizeof(double *) * nDataPoints);
+
+        for (int i = 0; i < nDataPoints; i++)
+        {
+            datSet->yAugmented[i] = malloc(sizeof(double) * nOuts);
+            datSet->xAugmented[i] = malloc(sizeof(double) * nInps);
+        }
+        // Process data.
+        double *yMin = malloc(sizeof(double) * nOuts);
+        double *yMax = malloc(sizeof(double) * nOuts);
+        double *xMin = malloc(sizeof(double) * nInps);
+        double *xMax = malloc(sizeof(double) * nInps);
+
+        memcpy(yMin, outArray->Array[0], sizeof(yMin) * nOuts);
+        memcpy(yMax, outArray->Array[0], sizeof(yMax) * nOuts);
+
+        memcpy(xMin, inpArray->Array[0], sizeof(xMin) * nInps);
+        memcpy(xMax, inpArray->Array[0], sizeof(xMax) * nInps);
+
+        for (int i = 0; i < nInps; i++)
+        {
+            for (int j = 0; j < nDataPoints; j++)
+            {
+                if (inpArray->Array[j][i] > xMax[i])
+                {
+                    xMax[i] = inpArray->Array[j][i];
+                }
+                if (inpArray->Array[j][i] < xMin[i])
+                {
+                    xMin[i] = inpArray->Array[j][i];
+                }
+            }
+        }
+        for (int i = 0; i < nOuts; i++)
+        {
+            for (int j = 0; j < nDataPoints; j++)
+            {
+                if (outArray->Array[j][i] > yMax[i])
+                {
+                    yMax[i] = inpArray->Array[j][i];
+                }
+                if (outArray->Array[j][i] < yMin[i])
+                {
+                    yMin[i] = inpArray->Array[j][i];
+                }
+            }
+        }
+
+        // Map from zero to 1
+
+        // Input and output space should be mapped from min, max to 0,1
+        //  1 = max*gain + offs
+        //  0 = min*gain + offs
+        //   => 1 = (max-min)*gain
+        // Offs = -min*(gain)
+        for (int i = 0; i < nInps; i++)
+        {
+            datSet->xGain[i] = 1.0 / (xMax[i] - xMin[i]);
+            datSet->xOffs[i] = -xMin[i] * datSet->xGain[i];
+            for (int j = 0; j < nDataPoints; j++)
+            {
+                datSet->xAugmented[j][i] = inpArray->Array[j][i] * datSet->xGain[i] + datSet->xOffs[i];
+            }
+        }
+        for (int i = 0; i < nOuts; i++)
+        {
+            datSet->yGain[i] = 1.0 / (yMax[i] - yMin[i]);
+            datSet->yOffs[i] = -yMin[i] * datSet->yGain[i];
+            for (int j = 0; j < nDataPoints; j++)
+            {
+                datSet->yAugmented[j][i] = outArray->Array[j][i] * datSet->yGain[i] + datSet->yOffs[i];
+            }
+        }
+        free(yMax);
+        free(yMin);
+        free(xMax);
+        free(xMin);
+
+        return datSet;
+    }
+    return NULL;
+}
+
+
+void printArrayToCsv(FILE *file, double **Arr, unsigned int nRows, unsigned int nCols){
+
+    for(int i = 0; i<nRows; i++){
+        for(int j = 0; j<nCols; j++){
+            if(j == (nCols-1)){
+
+            fprintf(file, "%.10f\n", Arr[i][j]);
+            }
+            else{
+            fprintf(file, "%.10f, ", Arr[i][j]);
+            }
+        }
+    }
+}
+
+void printUnAugmentedArrayToCsv(FILE *file, double **Arr, unsigned int nRows, unsigned int nCols, double *gain, double *offs){
+    for(int i = 0; i<nRows; i++){
+        for(int j = 0; j<nCols; j++){
+            if(j == (nCols-1)){
+
+            fprintf(file, "%.10f\n", (Arr[i][j]-offs[j])/gain[j]);
+            }
+            else{
+            fprintf(file, "%.10f, ", (Arr[i][j]-offs[j])/gain[j]);
+            }
+        }
+    }
+}
+
+void printData(dataSet *datSet){
+    FILE *fileAugmentedInputs = fopen("../FFAugmentedInputs.csv", "w");
+    FILE *fileAugmentedOutputs = fopen("../FFAugmentedOutputs.csv", "w");
+    FILE *fileInputs = fopen("../FFInputs.csv", "w");
+    FILE *fileOutputs = fopen("../FFOutputs.csv", "w");
+
+    printArrayToCsv(fileAugmentedInputs, datSet->xAugmented, datSet->nDataPoints, datSet->nInps);
+    printArrayToCsv(fileAugmentedOutputs, datSet->yAugmented, datSet->nDataPoints, datSet->nOuts);
+
+    printUnAugmentedArrayToCsv(fileInputs, datSet->xAugmented, datSet->nDataPoints, datSet->nInps, datSet->xGain, datSet->xOffs);
+    printUnAugmentedArrayToCsv(fileOutputs, datSet->yAugmented, datSet->nDataPoints, datSet->nOuts, datSet->yGain, datSet->yOffs);
+
+
 }
 
 int main()
-{
-    signal(SIGINT, sighandler);
-    int LSize[3] = {100, 10, 2};
-    int NLay = 3;
-    int inSize = 1;
-    int outSize = 2;
+{   
 
-    Network *Net = InitializeNetwork(NLay, LSize, inSize, outSize);
+    //Reading input and output data
+    FILE *fInp = fopen("../inputs.csv", "r");
+    FILE *fOut = fopen("../outputs.csv", "r");
+
+    Array *inpArray = readCsv(fInp);
+    Array *outArray = readCsv(fOut);
+    //dataSet *csvDataSet = formatCsvData(inpArray, outArray);
+    //dataSet *csvDataSet = generateConstData();
+    dataSet *csvDataSet = generateStep(100);
+    //printData(csvDataSet);
+
+    signal(SIGINT, sighandler);
+    int LSize[2] = {10, 1};
+    int NLay = 2;
+ 
+
+    Network *Net = InitializeNetwork(NLay, LSize, csvDataSet->nInps, csvDataSet->nOuts);
 
 
     printAllVals(Net);
-    int NData = 100000;
-    dataSet *datSet = GenerateSineInputData(NData);
+    //return 0;
+    //int NData = 4000;
+    
     double RMS = 0;
     double RMSAcc = 0;
     double RMSAccCount = 0;
-    int Epochs = 5001;
-    int BatchSize = NData;
+    int Epochs = 5000;
+    int BatchSize = csvDataSet->nDataPoints;
     int id = 0;
-    double LRate = 0;
+    double LRate = 0.001;
     srand((unsigned)time(NULL));
     for (int j = 0; j < Epochs; j++)
     {
         for (int i = 0; i < BatchSize; i++)
         {
-            id = (int)floor(((double)rand() / (double)RAND_MAX) * NData - 0.000001);
-            forwardProp(Net, datSet->xAugmented[id]);
-            RMS += back_prop(Net, datSet->yAugmented[id], datSet->xAugmented[id]);
+            
+            forwardProp(Net, csvDataSet->xAugmented[i]);
+            RMS += back_prop(Net, csvDataSet->yAugmented[i], csvDataSet->xAugmented[i]);
 
        /*     if (checkForNanVals(Net))
             {
                 printf("Found nans inp %i iteration %i\n\n", i, j);
             }*/
         }
+
+        printAllVals(Net);
+        return 0;
 
         RMS = RMS / (double)BatchSize;
         RMSAcc += RMS;
@@ -438,8 +677,8 @@ int main()
         //double LRate = 0.01 * (1.0 - eps) + eps * 0.0000001;
 
         double eps = (double)j / Epochs; // From 0 to 1
-        LRate = pow(10,-2*(1-eps) -9*(eps));
-        if (j % 200 == 0)
+        //LRate = pow(10,-1*(1-eps) -4*(eps));
+        if (j % 100 == 0)
         {
 
             printf("RMS Val %.9f Epoch: %i LRate: %.10f \n", RMSAcc / RMSAccCount, j, LRate);
@@ -447,7 +686,7 @@ int main()
             RMSAccCount = 0;
         }
         
-        gradientDescent(Net, BatchSize, LRate, 0.9, 0.9);
+        gradientDescent(Net, BatchSize, LRate, 0.9, 0.9); //First param is RMSPROP and second is Momentum
     }
 
     // printf("\n Outputs \n");

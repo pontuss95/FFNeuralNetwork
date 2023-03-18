@@ -29,5 +29,6 @@
     "**/.vscode/**"
   ],
   "C_Cpp_Runner.cppCompilerPath": "g++",
-  "C_Cpp_Runner.useMsvc": false
+  "C_Cpp_Runner.useMsvc": false,
+  "python.analysis.typeCheckingMode": "basic"
 }

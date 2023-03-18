@@ -1,13 +1,13 @@
 IDIR =../include
 CC=gcc
-CFLAGS=-I$(IDIR)
+CFLAGS=-I$(IDIR) -g
 
 ODIR=obj
 LDIR =../lib
 
 LIBS=-lm
 
-#_DEPS = hellomake.h
+#_DEPS = floatCsvReader.h
 #DEPS = $(patsubst %,$(IDIR)/%,$(_DEPS))
 
 #_OBJ = hellomake.o hellofunc.o 
@@ -19,7 +19,7 @@ $(ODIR)/%.o: %.c# $(DEPS)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 FFNeuralNet: $(OBJ)
-	$(CC) -o $@ $^ $(CFLAGS) $(LIBS)
+	$(CC) -o $@ $^ $(CFLAGS) $(LIBS) ../lib/floatCsvReader.o
 
 .PHONY: clean
 

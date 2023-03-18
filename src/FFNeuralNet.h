@@ -4,6 +4,7 @@
 #include <time.h>
 #include <float.h>
 #include <signal.h>
+#include <string.h>
 
 typedef struct DMatrix
 {
@@ -35,24 +36,27 @@ typedef struct Layer
 typedef struct Network
 {
     int NLayers;
-    int *LSize;
     int InpSize;
     int OutSize;
     Layer *Layers;
     double *DCostDLastLay;
-    void (*CostFun)(double *, double *, int, double *, double *)
+    void (*CostFun)(double *, double *, int, double *, double *);
 } Network;
 
 typedef struct dataSet
 {
     // Original dataset can be yielded by
-    // yAugmented = y*yGain-yOffs;
+    // yAugmented = y*yGain+yOffs;
+    unsigned int nInps;
+    unsigned int nOuts;
+    unsigned int nDataPoints;
 
     double **yAugmented;
     double **xAugmented;
-    double yGain;
-    double yOffs;
-    double xGain;
+    double *yGain;
+    double *yOffs;
+    double *xGain;
+    double *xOffs;
 } dataSet;
 
 void Layer_forwardProp(Layer *, double *, int);
