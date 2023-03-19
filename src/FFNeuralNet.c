@@ -1,5 +1,6 @@
 #include "FFNeuralNet.h"
 #include "floatCsvReader.h"
+#include <math.h>
 
 /*double extractMatrixElem(DMatrix Matrix, int row, int col)
 {
@@ -96,13 +97,16 @@ double back_prop(Network *self, double *y, double *x)
             L2 = NULL;
         }
 
+        //Back-propagating from L1 to L2
+
         for (int j = 0; j < L1->LSize; j++) // Neuron loop
         {
             currNeur = &L1->Neurn[j];
 
-            if (L2 != NULL)
-            {
-                currNeur->derivWeights[0] = currNeur->derivWrtCostFun;
+            if (L2 != NULL) //Backprop layer exists
+            {   
+                
+                currNeur->derivWeights[0] = currNeur->derivWeights[0] + currNeur->derivWrtCostFun;
                 for (int q = 0; q < L2->LSize; q++) // PrevNeuronLoop
                 {
                     currNeur->derivWeights[q + 1] += currNeur->derivWrtCostFun * L2->output[q];
@@ -111,12 +115,12 @@ double back_prop(Network *self, double *y, double *x)
                     {
                         L2->Neurn[q].derivWrtCostFun = 0;
                     }
-                    L2->Neurn[q].derivWrtCostFun += currNeur->derivWrtCostFun * currNeur->Weights[j + 1]; // bias first weight
+                    L2->Neurn[q].derivWrtCostFun += currNeur->derivWrtCostFun * currNeur->Weights[q + 1]; // bias first weight
                 }
             }
             else
             {
-                currNeur->derivWeights[0] = currNeur->derivWrtCostFun;
+                currNeur->derivWeights[0] = currNeur->derivWeights[0] + currNeur->derivWrtCostFun;
                 for (int q = 0; q < self->InpSize; q++) // PrevNeuronLoop
                 {
                     currNeur->derivWeights[q + 1] += currNeur->derivWrtCostFun * x[q];
@@ -139,7 +143,9 @@ double back_prop(Network *self, double *y, double *x)
 void rms(double *y, double *y_hat, int len, double *rmsVal, double *rmsValDer)
 {
     *rmsVal = 0;
-    *rmsValDer = 0;
+    for(int i=0; i<len; i++){
+        rmsValDer[i] = 0;
+    }
     double cumError = 0;
     int i;
     for (i = 0; i < len; i++)
@@ -147,15 +153,16 @@ void rms(double *y, double *y_hat, int len, double *rmsVal, double *rmsValDer)
         *rmsVal += pow(y[i] - y_hat[i], 2);
         cumError += y[i] - y_hat[i];
     }
-    *rmsVal /= (double)len;
+    
     *rmsVal = sqrt(*rmsVal);
-
+    double sqrtN = sqrt((double)len);
     if(rmsValDer != NULL){
-    for (i = 0; i < len; i++)
-    {
-        rmsValDer[i] = (-(y[i] - y_hat[i]) * 2) / (*rmsVal * (double)len);
+        for (i = 0; i < len; i++)
+        {
+            rmsValDer[i] = (-(y[i] - y_hat[i]) ) / (*rmsVal * sqrtN);
+        }
     }
-    }
+    *rmsVal *= 1/sqrtN;
 }
 
 void gradientDescent(Network *net, int NDataPoints, double learnRate, double RMSDecay, double momentumDecay)
@@ -180,7 +187,7 @@ void gradientDescent(Network *net, int NDataPoints, double learnRate, double RMS
         {
             Neuron *currNeur = &currLay->Neurn[j];
 
-            for (int q = 0; q < prevLaySize + 1; q++)
+            for (int q = 0; q < (prevLaySize + 1); q++)
             {
                 //RMSProp algorithm
                 tmp2 = RMSDecay*currNeur->movAvgSquareDer[q] + 
@@ -205,6 +212,27 @@ void gradientDescent(Network *net, int NDataPoints, double learnRate, double RMS
             }
         }
     }
+}
+
+double calculateGradientNorm(Network *Net){
+    int nWeights = 0;
+    double normGradient = 0;
+    for(int i = 0; i<Net->NLayers; i++){ //Every layer
+        if(i==0){
+            nWeights = Net->InpSize+1; // +1 for bias
+        }
+        else{
+            nWeights = Net->Layers[i-1].LSize+1; //+1 for bias
+        }
+
+        for(int j = 0; j<Net->Layers[i].LSize; j++){ // Every neruon
+            for(int q = 0; q<nWeights; q++){
+                normGradient += pow(Net->Layers[i].Neurn[j].Weights[q], (double)2);
+            }
+
+        }
+    }
+    return sqrt(normGradient);
 }
 
 void InitializeWeightsAndBiases(Network *Net)
@@ -615,81 +643,3 @@ void printData(dataSet *datSet){
 
 }
 
-int main()
-{   
-
-    //Reading input and output data
-    FILE *fInp = fopen("../inputs.csv", "r");
-    FILE *fOut = fopen("../outputs.csv", "r");
-
-    Array *inpArray = readCsv(fInp);
-    Array *outArray = readCsv(fOut);
-    dataSet *csvDataSet = formatCsvData(inpArray, outArray);
-    //dataSet *csvDataSet = generateConstData();
-    //dataSet *csvDataSet = generateStep(100);
-    printData(csvDataSet);
-
-    signal(SIGINT, sighandler);
-    int LSize[2] = {50, 1};
-    int NLay = 2;
- 
-
-    Network *Net = InitializeNetwork(NLay, LSize, csvDataSet->nInps, csvDataSet->nOuts);
-
-
-    printAllVals(Net);
-    //return 0;
-    //int NData = 4000;
-    
-    double RMS = 0;
-    double RMSAcc = 0;
-    double RMSAccCount = 0;
-    int Epochs = 5000;
-    int BatchSize = csvDataSet->nDataPoints;
-    int id = 0;
-    double LRate = 0.01;
-    srand((unsigned)time(NULL));
-    for (int j = 0; j < Epochs; j++)
-    {
-        for (int i = 0; i < BatchSize; i++)
-        {
-            
-            forwardProp(Net, csvDataSet->xAugmented[i]);
-            RMS += back_prop(Net, csvDataSet->yAugmented[i], csvDataSet->xAugmented[i]);
-
-       /*     if (checkForNanVals(Net))
-            {
-                printf("Found nans inp %i iteration %i\n\n", i, j);
-            }*/
-        }
-
-        //printAllVals(Net);
-
-        RMS = RMS / (double)BatchSize;
-        RMSAcc += RMS;
-        RMSAccCount++;
-        RMS = 0;
-        //double eps = (double)j / Epochs; // From 0 to 1
-        //1e-2 to 1e-7
-        //double LRate = 0.01 * (1.0 - eps) + eps * 0.0000001;
-
-        double eps = (double)j / Epochs; // From 0 to 1
-        LRate = pow(10,-2*(1-eps) -3*(eps));
-        if (j % 100 == 0)
-        {
-
-            printf("RMS Val %.9f Epoch: %i LRate: %.10f \n", RMSAcc / RMSAccCount, j, LRate);
-            RMSAcc = 0;
-            RMSAccCount = 0;
-        }
-        
-        gradientDescent(Net, BatchSize, LRate, 0.9, 0); //First param is RMSPROP and second is Momentum
-    }
-
-    // printf("\n Outputs \n");
-    // for (int i = 0; i < 2; i++)
-    //{
-    //    printf("%f  ", Net->Layers[1].output[i]);
-    //}
-    printAllVals(Net);
-}

@@ -30,5 +30,10 @@
   ],
   "C_Cpp_Runner.cppCompilerPath": "g++",
   "C_Cpp_Runner.useMsvc": false,
-  "python.analysis.typeCheckingMode": "basic"
+  "python.analysis.typeCheckingMode": "basic",
+  "files.associations": {
+    "signal.h": "c",
+    "stdlib.h": "c",
+    "stdio.h": "c"
+  }
 }

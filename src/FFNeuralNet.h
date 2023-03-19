@@ -1,3 +1,6 @@
+
+#ifndef FF_NEURAL_NET
+#define FF_NEURAL_NET
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -5,7 +8,7 @@
 #include <float.h>
 #include <signal.h>
 #include <string.h>
-
+#include "floatCsvReader.h"
 typedef struct DMatrix
 {
     double *p;
@@ -73,3 +76,8 @@ Network *InitializeNetwork(int, int *, int, int outSize);
 dataSet *GenerateSineInputData(int);
 void gradientDescent(Network *, int, double, double, double);
 void printAllVals(Network *);
+dataSet *formatCsvData(Array *inpArray, Array *outArray);
+void printData(dataSet *datSet);
+dataSet *generateStep(int);
+double calculateGradientNorm(Network *Net);
+#endif

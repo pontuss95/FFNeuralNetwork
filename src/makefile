@@ -1,6 +1,6 @@
 IDIR =../include
 CC=gcc
-CFLAGS=-I$(IDIR) -g
+CFLAGS=-I$(IDIR) -I. -g
 
 ODIR=obj
 LDIR =../lib
@@ -15,13 +15,10 @@ _OBJ = FFNeuralNet.o
 OBJ = $(patsubst %,$(ODIR)/%,$(_OBJ))
 
 
-$(ODIR)/%.o: %.c# $(DEPS)
+$(ODIR)/FFNeuralNet.o: FFNeuralNet.c
 	$(CC) -c -o $@ $< $(CFLAGS)
-
-FFNeuralNet: $(OBJ)
-	$(CC) -o $@ $^ $(CFLAGS) $(LIBS) ../lib/floatCsvReader.o
 
 .PHONY: clean
 
 clean:
-	rm -f $(ODIR)/*.o *~ core $(INCDIR)/*~ FFNeuralNet
+	rm -f $(ODIR)/*.o
